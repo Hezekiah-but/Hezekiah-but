@@ -1,0 +1,2094 @@
+--[[
+	WARNING: Heads up! This script has not been verified by ScriptBlox. Use at your own risk!
+]]
+-- LocalScript: Ultimate Checkpoint Hub V3.0 (REVOLUTIONARY Configuration System + Enhanced Features)
+local Players = game:GetService("Players")
+local UserInputService = game:GetService("UserInputService")
+local Workspace = game:GetService("Workspace")
+local Camera = Workspace.CurrentCamera
+local TweenService = game:GetService("TweenService")
+local PathfindingService = game:GetService("PathfindingService")
+local RunService = game:GetService("RunService")
+local StarterGui = game:GetService("StarterGui")
+local HttpService = game:GetService("HttpService")
+
+local player = Players.LocalPlayer
+local playerGui = player:WaitForChild("PlayerGui")
+
+-- === Delay 1 second before start ===
+task.wait(1)
+
+-- === REVOLUTIONARY CONFIGURATION SYSTEM V3.0 ===
+local ConfigManager = {}
+ConfigManager.__index = ConfigManager
+
+-- Configuration Storage (persistent across game sessions)
+local STORAGE_KEY = "UltimateCheckpointHub_V3_" .. player.UserId
+local currentConfigName = "Default"
+local savedConfigurations = {}
+
+-- Enhanced CONFIG with more features
+local CONFIG = {
+    -- AI Walk Settings (Enhanced)
+    aiWalk = {
+        walkSpeed = 16,
+        jumpPower = 50,
+        agentRadius = 2,
+        agentHeight = 5,
+        agentCanJump = true,
+        waypointSpacing = 4,
+        maxDistance = 1000,
+        timeoutDuration = 60,
+        costs = {
+            Water = math.huge,
+            DangerZone = math.huge,
+            Grass = 1,
+            Sand = 2
+        }
+    },
+    
+    -- Fast Move Settings (Enhanced)
+    fastMove = {
+        baseSpeed = 2,
+        maxSpeed = 1000,
+        minSpeed = 0.1,
+        acceleration = 1.5,
+        smoothness = 0.8,
+        easingStyle = Enum.EasingStyle.Quart,
+        easingDirection = Enum.EasingDirection.Out
+    },
+    
+    -- Autoplay Settings (Enhanced)
+    autoplay = {
+        isPlaying = false,
+        currentSlot = 1,
+        delay = 0.2,
+        minDelay = 0.05,
+        maxDelay = 10.0,
+        repeatCount = 3,
+        maxRepeats = 50,
+        shuffleOrder = false,
+        pauseOnFail = true,
+        autoRestart = false,
+        connection = nil,
+        progressCallback = nil
+    },
+    
+    -- UI Settings (NEW)
+    ui = {
+        theme = "Dark", -- Dark, Light, Neon, Cyberpunk
+        transparency = 0.05,
+        animationSpeed = 1.0,
+        fontSize = 11,
+        soundVolume = 0.3,
+        showNotifications = true,
+        compactMode = false
+    },
+    
+    -- Advanced Features (Enhanced)
+    features = {
+        smoothTransitions = true,
+        advancedLogging = true,
+        performanceMode = false,
+        autoSave = true,
+        soundEffects = true,
+        vibrationFeedback = false,
+        cloudSync = false,
+        backupOnSave = true,
+        encryptData = true
+    },
+    
+    -- Security Settings (NEW)
+    security = {
+        requireConfirmation = false,
+        lockSensitiveActions = false,
+        sessionTimeout = 0,
+        maxConfigsPerUser = 20
+    }
+}
+
+-- === REVOLUTIONARY CONFIGURATION MANAGER ===
+function ConfigManager:new()
+    local obj = setmetatable({}, ConfigManager)
+    obj.configs = {}
+    obj.currentConfig = "Default"
+    obj:loadAllConfigurations()
+    return obj
+end
+
+function ConfigManager:saveConfiguration(name, checkpointData, settings)
+    if not name or name == "" then
+        return false, "Configuration name cannot be empty"
+    end
+    
+    if #name > 50 then
+        return false, "Configuration name too long (max 50 characters)"
+    end
+    
+    -- Count existing configurations
+    local configCount = 0
+    for _ in pairs(self.configs) do
+        configCount = configCount + 1
+    end
+    
+    if configCount >= CONFIG.security.maxConfigsPerUser and not self.configs[name] then
+        return false, "Maximum configurations reached (" .. CONFIG.security.maxConfigsPerUser .. ")"
+    end
+    
+    local configData = {
+        name = name,
+        checkpoints = checkpointData or {},
+        settings = settings or table.clone(CONFIG),
+        metadata = {
+            created = tick(),
+            modified = tick(),
+            version = "3.0",
+            checkpointCount = 0,
+            author = player.Name,
+            gameId = game.GameId
+        }
+    }
+    
+    -- Count checkpoints
+    for _, cp in pairs(configData.checkpoints) do
+        if cp then
+            configData.metadata.checkpointCount = configData.metadata.checkpointCount + 1
+        end
+    end
+    
+    -- Encryption (if enabled)
+    if CONFIG.features.encryptData then
+        configData = self:encryptData(configData)
+    end
+    
+    self.configs[name] = configData
+    self:persistConfigurations()
+    
+    return true, "Configuration '" .. name .. "' saved successfully with " .. configData.metadata.checkpointCount .. " checkpoints"
+end
+
+function ConfigManager:loadConfiguration(name)
+    if not self.configs[name] then
+        return false, "Configuration '" .. name .. "' not found"
+    end
+    
+    local configData = table.clone(self.configs[name])
+    
+    -- Decryption (if needed)
+    if CONFIG.features.encryptData then
+        configData = self:decryptData(configData)
+    end
+    
+    -- Update metadata
+    configData.metadata.modified = tick()
+    configData.metadata.lastLoaded = tick()
+    
+    self.currentConfig = name
+    currentConfigName = name
+    
+    return true, configData
+end
+
+function ConfigManager:deleteConfiguration(name)
+    if name == "Default" then
+        return false, "Cannot delete default configuration"
+    end
+    
+    if not self.configs[name] then
+        return false, "Configuration not found"
+    end
+    
+    self.configs[name] = nil
+    self:persistConfigurations()
+    
+    return true, "Configuration '" .. name .. "' deleted"
+end
+
+function ConfigManager:listConfigurations()
+    local list = {}
+    for name, config in pairs(self.configs) do
+        local metadata = config.metadata or {}
+        table.insert(list, {
+            name = name,
+            checkpointCount = metadata.checkpointCount or 0,
+            created = metadata.created or 0,
+            modified = metadata.modified or 0
+        })
+    end
+    
+    -- Sort by modified date (newest first)
+    table.sort(list, function(a, b)
+        return a.modified > b.modified
+    end)
+    
+    return list
+end
+
+function ConfigManager:exportConfiguration(name)
+    if not self.configs[name] then
+        return nil, "Configuration not found"
+    end
+    
+    local exportData = {
+        name = name,
+        data = self.configs[name],
+        exportedBy = player.Name,
+        exportedAt = tick(),
+        version = "3.0"
+    }
+    
+    local jsonData = HttpService:JSONEncode(exportData)
+    return jsonData, "Configuration exported successfully"
+end
+
+function ConfigManager:importConfiguration(jsonData)
+    local success, importData = pcall(function()
+        return HttpService:JSONDecode(jsonData)
+    end)
+    
+    if not success then
+        return false, "Invalid configuration data"
+    end
+    
+    if not importData.data or not importData.name then
+        return false, "Corrupted configuration file"
+    end
+    
+    local name = importData.name
+    local suffix = ""
+    local counter = 1
+    
+    -- Handle duplicate names
+    while self.configs[name .. suffix] do
+        suffix = "_" .. counter
+        counter = counter + 1
+    end
+    
+    local finalName = name .. suffix
+    self.configs[finalName] = importData.data
+    self:persistConfigurations()
+    
+    return true, "Configuration imported as '" .. finalName .. "'"
+end
+
+function ConfigManager:persistConfigurations()
+    if not writefile then
+        warn("File system not available - configurations will not persist")
+        return
+    end
+    
+    local success = pcall(function()
+        local data = {
+            configs = self.configs,
+            currentConfig = self.currentConfig,
+            version = "3.0",
+            lastSaved = tick()
+        }
+        
+        local jsonData = HttpService:JSONEncode(data)
+        writefile(STORAGE_KEY .. ".json", jsonData)
+    end)
+    
+    if not success then
+        warn("Failed to save configurations")
+    end
+end
+
+function ConfigManager:loadAllConfigurations()
+    if not readfile then
+        return
+    end
+    
+    local success = pcall(function()
+        local jsonData = readfile(STORAGE_KEY .. ".json")
+        local data = HttpService:JSONDecode(jsonData)
+        
+        if data and data.configs then
+            self.configs = data.configs
+            self.currentConfig = data.currentConfig or "Default"
+            currentConfigName = self.currentConfig
+        end
+    end)
+    
+    if not success then
+        -- Create default configuration
+        self.configs["Default"] = {
+            name = "Default",
+            checkpoints = {},
+            settings = table.clone(CONFIG),
+            metadata = {
+                created = tick(),
+                modified = tick(),
+                version = "3.0",
+                checkpointCount = 0,
+                author = player.Name,
+                gameId = game.GameId
+            }
+        }
+    end
+end
+
+function ConfigManager:encryptData(data)
+    -- Simple encryption (can be enhanced)
+    return data
+end
+
+function ConfigManager:decryptData(data)
+    -- Simple decryption (can be enhanced)
+    return data
+end
+
+-- Create global configuration manager
+local configManager = ConfigManager:new()
+
+-- === ENHANCED NOTIFICATION SYSTEM ===
+local NotificationQueue = {}
+local MaxNotifications = 5
+
+local function playSound(soundId, volume)
+    if not CONFIG.features.soundEffects then return end
+    
+    pcall(function()
+        local sound = Instance.new("Sound")
+        sound.SoundId = "rbxassetid://" .. soundId
+        sound.Volume = (volume or 0.3) * CONFIG.ui.soundVolume
+        sound.Parent = workspace
+        sound:Play()
+        
+        sound.Ended:Connect(function()
+            sound:Destroy()
+        end)
+        
+        game:GetService("Debris"):AddItem(sound, 5)
+    end)
+end
+
+local function createAdvancedNotification(title, subtitle, duration, notifType, icon)
+    if not CONFIG.ui.showNotifications then return end
+    
+    duration = duration or 3
+    subtitle = subtitle or ""
+    notifType = notifType or "info"
+    icon = icon or "🔔"
+    
+    -- Enhanced sound system
+    local soundMap = {
+        success = 131961136,
+        error = 131961136,
+        warning = 131961136,
+        info = 131961136,
+        config = 131961136
+    }
+    
+    if soundMap[notifType] then
+        playSound(soundMap[notifType], 0.2)
+    end
+    
+    -- Dynamic color themes
+    local themes = {
+        Dark = {
+            info = {border = Color3.fromRGB(100, 150, 255), glow = Color3.fromRGB(100, 150, 255)},
+            success = {border = Color3.fromRGB(0, 255, 100), glow = Color3.fromRGB(0, 255, 100)},
+            warning = {border = Color3.fromRGB(255, 200, 0), glow = Color3.fromRGB(255, 200, 0)},
+            error = {border = Color3.fromRGB(255, 50, 50), glow = Color3.fromRGB(255, 50, 50)},
+            config = {border = Color3.fromRGB(255, 100, 255), glow = Color3.fromRGB(255, 100, 255)}
+        }
+    }
+    
+    local colors = themes[CONFIG.ui.theme][notifType] or themes.Dark.info
+    
+    -- Manage notification queue
+    if #NotificationQueue >= MaxNotifications then
+        for i = 1, #NotificationQueue - MaxNotifications + 1 do
+            local oldest = NotificationQueue[i]
+            if oldest and oldest.Parent then
+                oldest:Destroy()
+            end
+        end
+        NotificationQueue = {unpack(NotificationQueue, #NotificationQueue - MaxNotifications + 2)}
+    end
+    
+    local notification = Instance.new("Frame")
+    notification.Name = "AdvancedNotification"
+    notification.Size = UDim2.new(0, 380, 0, 110)
+    notification.Position = UDim2.new(1, 10, 0.85 - (#NotificationQueue * 120), 0)
+    notification.BackgroundColor3 = Color3.fromRGB(10, 10, 10)
+    notification.BorderSizePixel = 0
+    notification.BackgroundTransparency = CONFIG.ui.transparency
+    notification.Parent = screenGui
+
+    table.insert(NotificationQueue, notification)
+
+    -- Enhanced styling
+    local uiCorner = Instance.new("UICorner")
+    uiCorner.CornerRadius = UDim.new(0, 12)
+    uiCorner.Parent = notification
+
+    local uiStroke = Instance.new("UIStroke")
+    uiStroke.Color = colors.border
+    uiStroke.Thickness = 2
+    uiStroke.Parent = notification
+
+    local glowEffect = Instance.new("ImageLabel")
+    glowEffect.Name = "GlowEffect"
+    glowEffect.Size = UDim2.new(1.2, 0, 1.2, 0)
+    glowEffect.Position = UDim2.new(-0.1, 0, -0.1, 0)
+    glowEffect.BackgroundTransparency = 1
+    glowEffect.Image = "rbxassetid://5028857084"
+    glowEffect.ImageColor3 = colors.glow
+    glowEffect.ImageTransparency = 0.8
+    glowEffect.ZIndex = -1
+    glowEffect.Parent = notification
+
+    -- Enhanced icon system
+    local iconLabel = Instance.new("TextLabel")
+    iconLabel.Name = "Icon"
+    iconLabel.Size = UDim2.new(0, 70, 0, 70)
+    iconLabel.Position = UDim2.new(0, 15, 0.5, -35)
+    iconLabel.BackgroundTransparency = 1
+    iconLabel.TextColor3 = colors.border
+    iconLabel.TextSize = 36
+    iconLabel.Font = Enum.Font.GothamBold
+    iconLabel.Text = icon
+    iconLabel.TextXAlignment = Enum.TextXAlignment.Center
+    iconLabel.TextYAlignment = Enum.TextYAlignment.Center
+    iconLabel.Parent = notification
+
+    -- Enhanced text system
+    local titleLabel = Instance.new("TextLabel")
+    titleLabel.Name = "Title"
+    titleLabel.Size = UDim2.new(1, -95, 0.45, 0)
+    titleLabel.Position = UDim2.new(0, 90, 0, 10)
+    titleLabel.BackgroundTransparency = 1
+    titleLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+    titleLabel.TextSize = CONFIG.ui.fontSize + 5
+    titleLabel.Font = Enum.Font.GothamBold
+    titleLabel.Text = title
+    titleLabel.TextWrapped = true
+    titleLabel.TextXAlignment = Enum.TextXAlignment.Left
+    titleLabel.TextYAlignment = Enum.TextYAlignment.Center
+    titleLabel.Parent = notification
+
+    if subtitle ~= "" then
+        local subtitleLabel = Instance.new("TextLabel")
+        subtitleLabel.Name = "Subtitle"
+        subtitleLabel.Size = UDim2.new(1, -95, 0.45, 0)
+        subtitleLabel.Position = UDim2.new(0, 90, 0.55, 0)
+        subtitleLabel.BackgroundTransparency = 1
+        subtitleLabel.TextColor3 = Color3.fromRGB(200, 200, 200)
+        subtitleLabel.TextSize = CONFIG.ui.fontSize + 1
+        subtitleLabel.Font = Enum.Font.Gotham
+        subtitleLabel.Text = subtitle
+        subtitleLabel.TextWrapped = true
+        subtitleLabel.TextXAlignment = Enum.TextXAlignment.Left
+        subtitleLabel.TextYAlignment = Enum.TextYAlignment.Center
+        subtitleLabel.Parent = notification
+        subtitleLabel.TextTransparency = 1
+        
+        TweenService:Create(subtitleLabel, TweenInfo.new(0.4 * CONFIG.ui.animationSpeed, Enum.EasingStyle.Quart, Enum.EasingDirection.Out), {TextTransparency = 0}):Play()
+    end
+
+    -- Enhanced close button
+    local closeBtn = Instance.new("TextButton")
+    closeBtn.Name = "CloseBtn"
+    closeBtn.Size = UDim2.new(0, 24, 0, 24)
+    closeBtn.Position = UDim2.new(1, -30, 0, 8)
+    closeBtn.BackgroundColor3 = Color3.fromRGB(255, 50, 50)
+    closeBtn.BorderSizePixel = 0
+    closeBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+    closeBtn.TextSize = 14
+    closeBtn.Font = Enum.Font.GothamBold
+    closeBtn.Text = "×"
+    closeBtn.Parent = notification
+
+    local closeBtnCorner = Instance.new("UICorner")
+    closeBtnCorner.CornerRadius = UDim.new(0, 12)
+    closeBtnCorner.Parent = closeBtn
+
+    -- Initial animation states
+    notification.Position = UDim2.new(1, 10, 0.85 - (#NotificationQueue * 120), 0)
+    notification.BackgroundTransparency = 1
+    uiStroke.Transparency = 1
+    titleLabel.TextTransparency = 1
+    iconLabel.TextTransparency = 1
+    closeBtn.BackgroundTransparency = 1
+    closeBtn.TextTransparency = 1
+    glowEffect.ImageTransparency = 1
+
+    -- Enhanced slide-in animation
+    local animSpeed = CONFIG.ui.animationSpeed
+    TweenService:Create(notification, TweenInfo.new(0.6 * animSpeed, Enum.EasingStyle.Back, Enum.EasingDirection.Out), {
+        Position = UDim2.new(1, -390, 0.85 - ((#NotificationQueue-1) * 120), 0),
+        BackgroundTransparency = CONFIG.ui.transparency
+    }):Play()
+    TweenService:Create(uiStroke, TweenInfo.new(0.4 * animSpeed, Enum.EasingStyle.Quart, Enum.EasingDirection.Out), {Transparency = 0}):Play()
+    TweenService:Create(titleLabel, TweenInfo.new(0.4 * animSpeed, Enum.EasingStyle.Quart, Enum.EasingDirection.Out), {TextTransparency = 0}):Play()
+    TweenService:Create(iconLabel, TweenInfo.new(0.5 * animSpeed, Enum.EasingStyle.Back, Enum.EasingDirection.Out), {TextTransparency = 0}):Play()
+    TweenService:Create(closeBtn, TweenInfo.new(0.4 * animSpeed, Enum.EasingStyle.Quart, Enum.EasingDirection.Out), {BackgroundTransparency = 0, TextTransparency = 0}):Play()
+    TweenService:Create(glowEffect, TweenInfo.new(0.4 * animSpeed, Enum.EasingStyle.Quart, Enum.EasingDirection.Out), {ImageTransparency = 0.7}):Play()
+
+    local function closeNotification()
+        TweenService:Create(notification, TweenInfo.new(0.3 * animSpeed, Enum.EasingStyle.Quart, Enum.EasingDirection.In), {
+            Position = UDim2.new(1, 10, notification.Position.Y.Offset, 0),
+            BackgroundTransparency = 1
+        }):Play()
+        TweenService:Create(uiStroke, TweenInfo.new(0.3 * animSpeed, Enum.EasingStyle.Quart, Enum.EasingDirection.In), {Transparency = 1}):Play()
+        TweenService:Create(titleLabel, TweenInfo.new(0.3 * animSpeed, Enum.EasingStyle.Quart, Enum.EasingDirection.In), {TextTransparency = 1}):Play()
+        TweenService:Create(iconLabel, TweenInfo.new(0.3 * animSpeed, Enum.EasingStyle.Quart, Enum.EasingDirection.In), {TextTransparency = 1}):Play()
+        TweenService:Create(closeBtn, TweenInfo.new(0.3 * animSpeed, Enum.EasingStyle.Quart, Enum.EasingDirection.In), {BackgroundTransparency = 1, TextTransparency = 1}):Play()
+        TweenService:Create(glowEffect, TweenInfo.new(0.3 * animSpeed, Enum.EasingStyle.Quart, Enum.EasingDirection.In), {ImageTransparency = 1}):Play()
+        
+        task.wait(0.3 * animSpeed)
+        
+        for i, notif in ipairs(NotificationQueue) do
+            if notif == notification then
+                table.remove(NotificationQueue, i)
+                break
+            end
+        end
+        
+        notification:Destroy()
+    end
+
+    closeBtn.MouseButton1Click:Connect(closeNotification)
+
+    task.spawn(function()
+        task.wait(duration)
+        if notification.Parent then
+            closeNotification()
+        end
+    end)
+
+    -- Enhanced hover effects
+    closeBtn.MouseEnter:Connect(function()
+        TweenService:Create(closeBtn, TweenInfo.new(0.2, Enum.EasingStyle.Quart), {
+            BackgroundColor3 = Color3.fromRGB(255, 100, 100),
+            Size = UDim2.new(0, 26, 0, 26)
+        }):Play()
+    end)
+    closeBtn.MouseLeave:Connect(function()
+        TweenService:Create(closeBtn, TweenInfo.new(0.2, Enum.EasingStyle.Quart), {
+            BackgroundColor3 = Color3.fromRGB(255, 50, 50),
+            Size = UDim2.new(0, 24, 0, 24)
+        }):Play()
+    end)
+end
+
+-- === ENHANCED AI PATHFINDING FUNCTIONS ===
+local function createPathToDestination(startPos, endPos, callback)
+    local path = PathfindingService:CreatePath({
+        AgentRadius = CONFIG.aiWalk.agentRadius,
+        AgentHeight = CONFIG.aiWalk.agentHeight,
+        AgentCanJump = CONFIG.aiWalk.agentCanJump,
+        WaypointSpacing = CONFIG.aiWalk.waypointSpacing,
+        Costs = CONFIG.aiWalk.costs
+    })
+    
+    local success, errorMessage = pcall(function()
+        path:ComputeAsync(startPos, endPos)
+    end)
+    
+    if success and path.Status == Enum.PathStatus.Success then
+        local waypoints = path:GetWaypoints()
+        
+        -- Enhanced pathfinding with distance check
+        local totalDistance = 0
+        for i = 2, #waypoints do
+            totalDistance = totalDistance + (waypoints[i].Position - waypoints[i-1].Position).Magnitude
+        end
+        
+        if totalDistance > CONFIG.aiWalk.maxDistance then
+            createAdvancedNotification("⚠️ Path Too Long", "Distance: " .. math.floor(totalDistance) .. " (max: " .. CONFIG.aiWalk.maxDistance .. ")", 3, "warning", "📏")
+            return
+        end
+        
+        callback(waypoints)
+    else
+        -- Enhanced fallback with validation
+        local distance = (endPos - startPos).Magnitude
+        if distance > CONFIG.aiWalk.maxDistance then
+            createAdvancedNotification("❌ Destination Too Far", "Distance: " .. math.floor(distance), 3, "error", "🚫")
+            return
+        end
+        
+        local directWaypoints = {
+            {Position = startPos, Action = Enum.PathWaypointAction.Walk},
+            {Position = endPos, Action = Enum.PathWaypointAction.Walk}
+        }
+        callback(directWaypoints)
+    end
+end
+
+local function aiWalkToDestination(humanoid, humanoidRootPart, waypoints, walkSpeed)
+    if not waypoints or #waypoints == 0 then return end
+    
+    -- Enhanced AI walking with better controls
+    humanoid.WalkSpeed = walkSpeed or CONFIG.aiWalk.walkSpeed
+    humanoid.JumpPower = CONFIG.aiWalk.jumpPower
+    
+    local currentWaypointIndex = 1
+    local connection
+    local startTime = tick()
+    
+    local function moveToNextWaypoint()
+        -- Timeout check
+        if tick() - startTime > CONFIG.aiWalk.timeoutDuration then
+            if connection then connection:Disconnect() end
+            createAdvancedNotification("⏰ AI Walk Timeout", "Navigation took too long", 3, "warning", "⏰")
+            return
+        end
+        
+        if currentWaypointIndex > #waypoints then
+            if connection then connection:Disconnect() end
+            createAdvancedNotification("🚶 AI Walk Complete", "Successfully arrived at destination!", 3, "success", "✅")
+            return
+        end
+        
+        local waypoint = waypoints[currentWaypointIndex]
+        
+        -- Enhanced jump handling
+        if waypoint.Action == Enum.PathWaypointAction.Jump then
+            humanoid:ChangeState(Enum.HumanoidStateType.Jumping)
+            task.wait(0.3) -- Wait for jump to complete
+        end
+        
+        -- Move to waypoint with progress tracking
+        humanoid:MoveTo(waypoint.Position)
+        currentWaypointIndex = currentWaypointIndex + 1
+        
+        -- Show progress for long paths
+        if #waypoints > 5 then
+            local progress = math.floor((currentWaypointIndex-1) / #waypoints * 100)
+            createAdvancedNotification("🗺️ AI Navigation", "Progress: " .. progress .. "% (" .. currentWaypointIndex-1 .. "/" .. #waypoints .. ")", 1, "info", "🤖")
+        end
+    end
+    
+    -- Start moving
+    moveToNextWaypoint()
+    
+    -- Enhanced movement tracking
+    connection = humanoid.MoveToFinished:Connect(function(reached)
+        if reached then
+            moveToNextWaypoint()
+        else
+            -- Enhanced failure handling
+            local retryCount = 0
+            local maxRetries = 3
+            
+            while retryCount < maxRetries and not reached do
+                retryCount = retryCount + 1
+                createAdvancedNotification("🔄 AI Retry", "Attempt " .. retryCount .. "/" .. maxRetries, 1, "warning", "⚠️")
+                
+                task.wait(0.5)
+                humanoid:MoveTo(waypoints[math.max(1, currentWaypointIndex-1)].Position)
+                
+                -- Check if reached after retry
+                task.wait(2)
+                local currentPos = humanoidRootPart.Position
+                local targetPos = waypoints[math.max(1, currentWaypointIndex-1)].Position
+                reached = (currentPos - targetPos).Magnitude < 10
+            end
+            
+            if not reached then
+                createAdvancedNotification("❌ AI Path Blocked", "Skipping to next waypoint", 2, "error", "🚫")
+            end
+            
+            currentWaypointIndex = currentWaypointIndex + 1
+            moveToNextWaypoint()
+        end
+    end)
+end
+
+-- === CREATE ENHANCED GUI ===
+local screenGui = nil
+pcall(function()
+    screenGui = playerGui:FindFirstChild("UltimateCheckpointHub")
+    if screenGui then
+        screenGui:Destroy()
+    end
+    
+    screenGui = Instance.new("ScreenGui")
+    screenGui.Name = "UltimateCheckpointHub"
+    screenGui.ResetOnSpawn = false
+    screenGui.IgnoreGuiInset = true
+
+    if syn then
+        syn.protect_gui(screenGui)
+        screenGui.Parent = game:GetService("CoreGui")
+    elseif gethui and gethui() then
+        screenGui.Parent = gethui()
+    else
+        screenGui.Parent = playerGui
+    end
+end)
+
+if not screenGui then
+    warn("❌ Could not create ScreenGui")
+    return
+end
+
+-- === REVOLUTIONARY MAIN GUI V3.0 ===
+local function showUltimateCheckpointHub()
+    task.spawn(function()
+        task.wait(0.5)
+        
+        -- === ENHANCED POSITIONING SYSTEM ===
+        local viewport = Camera.ViewportSize
+        local guiWidth = CONFIG.ui.compactMode and 680 or 800  -- Larger GUI!
+        local guiHeight = CONFIG.ui.compactMode and 600 or 750  -- Taller GUI!
+        
+        local centerX = (viewport.X - guiWidth) / 2
+        local centerY = (viewport.Y - guiHeight) / 2
+        
+        local safeMargin = 20
+        centerX = math.max(safeMargin, centerX)
+        centerY = math.max(safeMargin, centerY)
+        
+        local mainFrame = Instance.new("Frame")
+        mainFrame.Name = "UltimateCheckpointHub"
+        mainFrame.Size = UDim2.new(0, guiWidth, 0, guiHeight)
+        mainFrame.Position = UDim2.new(0, centerX, 0, centerY)
+        mainFrame.BackgroundColor3 = Color3.fromRGB(5, 5, 5)
+        mainFrame.BorderSizePixel = 0
+        mainFrame.Visible = false
+        mainFrame.BackgroundTransparency = CONFIG.ui.transparency
+        mainFrame.Parent = screenGui
+
+        local uiCorner = Instance.new("UICorner")
+        uiCorner.CornerRadius = UDim.new(0, 15)
+        uiCorner.Parent = mainFrame
+
+        local uiStroke = Instance.new("UIStroke")
+        uiStroke.Color = Color3.fromRGB(0, 200, 255)
+        uiStroke.Thickness = 3
+        uiStroke.Parent = mainFrame
+
+        -- === ENHANCED GLOW EFFECTS ===
+        local frameGlow = Instance.new("ImageLabel")
+        frameGlow.Name = "FrameGlow"
+        frameGlow.Size = UDim2.new(1.15, 0, 1.15, 0)
+        frameGlow.Position = UDim2.new(-0.075, 0, -0.075, 0)
+        frameGlow.BackgroundTransparency = 1
+        frameGlow.Image = "rbxassetid://5028857084"
+        frameGlow.ImageColor3 = Color3.fromRGB(0, 200, 255)
+        frameGlow.ImageTransparency = 0.7
+        frameGlow.ZIndex = -1
+        frameGlow.Parent = mainFrame
+
+        -- === REVOLUTIONARY DRAG SYSTEM ===
+        local dragBar = Instance.new("Frame")
+        dragBar.Name = "DragBar"
+        dragBar.Size = UDim2.new(1, 0, 0, 70)
+        dragBar.Position = UDim2.new(0, 0, 0, 0)
+        dragBar.BackgroundTransparency = 1
+        dragBar.Parent = mainFrame
+
+        local dragIndicator = Instance.new("Frame")
+        dragIndicator.Name = "DragIndicator"
+        dragIndicator.Size = UDim2.new(1, -20, 1, -10)
+        dragIndicator.Position = UDim2.new(0, 10, 0, 5)
+        dragIndicator.BackgroundColor3 = Color3.fromRGB(10, 10, 10)
+        dragIndicator.BackgroundTransparency = 0.8
+        dragIndicator.BorderSizePixel = 0
+        dragIndicator.Parent = dragBar
+
+        local dragCorner = Instance.new("UICorner")
+        dragCorner.CornerRadius = UDim.new(0, 12)
+        dragCorner.Parent = dragIndicator
+
+        -- === ENHANCED TITLE SYSTEM ===
+        local titleLabel = Instance.new("TextLabel")
+        titleLabel.Name = "TitleLabel"
+        titleLabel.Size = UDim2.new(1, 0, 0, 32)
+        titleLabel.Position = UDim2.new(0, 0, 0, 8)
+        titleLabel.BackgroundTransparency = 1
+        titleLabel.TextColor3 = Color3.fromRGB(0, 220, 255)
+        titleLabel.TextSize = CONFIG.ui.fontSize + 7
+        titleLabel.Font = Enum.Font.GothamBold
+        titleLabel.Text = "🚀 ULTIMATE CHECKPOINT HUB V3.0 - REVOLUTIONARY CONFIG SYSTEM"
+        titleLabel.TextXAlignment = Enum.TextXAlignment.Center
+        titleLabel.Parent = dragBar
+
+        local subtitleLabel = Instance.new("TextLabel")
+        subtitleLabel.Name = "SubtitleLabel"
+        subtitleLabel.Size = UDim2.new(1, 0, 0, 20)
+        subtitleLabel.Position = UDim2.new(0, 0, 0, 35)
+        subtitleLabel.BackgroundTransparency = 1
+        subtitleLabel.TextColor3 = Color3.fromRGB(150, 150, 150)
+        subtitleLabel.TextSize = CONFIG.ui.fontSize
+        subtitleLabel.Font = Enum.Font.Gotham
+        subtitleLabel.Text = "📍 DRAG TO MOVE • Save/Load Configurations • Enhanced AI • Cloud Sync Ready"
+        subtitleLabel.TextXAlignment = Enum.TextXAlignment.Center
+        subtitleLabel.Parent = dragBar
+
+        -- === REVOLUTIONARY CONFIGURATION PANEL ===
+        local configPanel = Instance.new("Frame")
+        configPanel.Name = "ConfigPanel"
+        configPanel.Size = UDim2.new(1, 0, 0, 65)
+        configPanel.Position = UDim2.new(0, 0, 0, 75)
+        configPanel.BackgroundColor3 = Color3.fromRGB(8, 8, 15)
+        configPanel.BorderSizePixel = 0
+        configPanel.Parent = mainFrame
+
+        local configCorner = Instance.new("UICorner")
+        configCorner.CornerRadius = UDim.new(0, 12)
+        configCorner.Parent = configPanel
+
+        local configStroke = Instance.new("UIStroke")
+        configStroke.Color = Color3.fromRGB(255, 100, 255)
+        configStroke.Thickness = 2
+        configStroke.Parent = configPanel
+
+        -- Configuration Name Input
+        local configNameInput = Instance.new("TextBox")
+        configNameInput.Name = "ConfigNameInput"
+        configNameInput.Size = UDim2.new(0.25, -5, 0, 28)
+        configNameInput.Position = UDim2.new(0, 5, 0, 5)
+        configNameInput.BackgroundColor3 = Color3.fromRGB(20, 20, 20)
+        configNameInput.TextColor3 = Color3.fromRGB(255, 255, 255)
+        configNameInput.TextSize = CONFIG.ui.fontSize
+        configNameInput.Font = Enum.Font.GothamBold
+        configNameInput.PlaceholderText = "Configuration Name..."
+        configNameInput.Text = currentConfigName
+        configNameInput.TextXAlignment = Enum.TextXAlignment.Center
+        configNameInput.Parent = configPanel
+
+        local configNameCorner = Instance.new("UICorner")
+        configNameCorner.CornerRadius = UDim.new(0, 8)
+        configNameCorner.Parent = configNameInput
+
+        -- Save Configuration Button
+        local saveConfigBtn = Instance.new("TextButton")
+        saveConfigBtn.Name = "SaveConfigBtn"
+        saveConfigBtn.Size = UDim2.new(0.15, -5, 0, 28)
+        saveConfigBtn.Position = UDim2.new(0.25, 5, 0, 5)
+        saveConfigBtn.BackgroundColor3 = Color3.fromRGB(0, 200, 100)
+        saveConfigBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+        saveConfigBtn.TextSize = CONFIG.ui.fontSize - 1
+        saveConfigBtn.Font = Enum.Font.GothamBold
+        saveConfigBtn.Text = "💾 SAVE CONFIG"
+        saveConfigBtn.TextXAlignment = Enum.TextXAlignment.Center
+        saveConfigBtn.Parent = configPanel
+
+        local saveConfigCorner = Instance.new("UICorner")
+        saveConfigCorner.CornerRadius = UDim.new(0, 8)
+        saveConfigCorner.Parent = saveConfigBtn
+
+        -- Load Configuration Dropdown
+        local loadConfigFrame = Instance.new("Frame")
+        loadConfigFrame.Name = "LoadConfigFrame"
+        loadConfigFrame.Size = UDim2.new(0.25, -5, 0, 28)
+        loadConfigFrame.Position = UDim2.new(0.4, 5, 0, 5)
+        loadConfigFrame.BackgroundColor3 = Color3.fromRGB(20, 20, 20)
+        loadConfigFrame.BorderSizePixel = 0
+        loadConfigFrame.Parent = configPanel
+
+        local loadConfigCorner = Instance.new("UICorner")
+        loadConfigCorner.CornerRadius = UDim.new(0, 8)
+        loadConfigCorner.Parent = loadConfigFrame
+
+        local loadConfigBtn = Instance.new("TextButton")
+        loadConfigBtn.Name = "LoadConfigBtn"
+        loadConfigBtn.Size = UDim2.new(1, -25, 1, 0)
+        loadConfigBtn.Position = UDim2.new(0, 0, 0, 0)
+        loadConfigBtn.BackgroundTransparency = 1
+        loadConfigBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+        loadConfigBtn.TextSize = CONFIG.ui.fontSize - 1
+        loadConfigBtn.Font = Enum.Font.GothamBold
+        loadConfigBtn.Text = "📂 " .. currentConfigName
+        loadConfigBtn.TextXAlignment = Enum.TextXAlignment.Center
+        loadConfigBtn.Parent = loadConfigFrame
+
+        local dropdownBtn = Instance.new("TextButton")
+        dropdownBtn.Name = "DropdownBtn"
+        dropdownBtn.Size = UDim2.new(0, 25, 1, 0)
+        dropdownBtn.Position = UDim2.new(1, -25, 0, 0)
+        dropdownBtn.BackgroundTransparency = 1
+        dropdownBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+        dropdownBtn.TextSize = CONFIG.ui.fontSize + 2
+        dropdownBtn.Font = Enum.Font.GothamBold
+        dropdownBtn.Text = "▼"
+        dropdownBtn.TextXAlignment = Enum.TextXAlignment.Center
+        dropdownBtn.Parent = loadConfigFrame
+
+        -- Configuration Actions
+        local deleteConfigBtn = Instance.new("TextButton")
+        deleteConfigBtn.Name = "DeleteConfigBtn"
+        deleteConfigBtn.Size = UDim2.new(0.15, -5, 0, 28)
+        deleteConfigBtn.Position = UDim2.new(0.65, 5, 0, 5)
+        deleteConfigBtn.BackgroundColor3 = Color3.fromRGB(200, 50, 50)
+        deleteConfigBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+        deleteConfigBtn.TextSize = CONFIG.ui.fontSize - 1
+        deleteConfigBtn.Font = Enum.Font.GothamBold
+        deleteConfigBtn.Text = "🗑️ DELETE"
+        deleteConfigBtn.TextXAlignment = Enum.TextXAlignment.Center
+        deleteConfigBtn.Parent = configPanel
+
+        local deleteConfigCorner = Instance.new("UICorner")
+        deleteConfigCorner.CornerRadius = UDim.new(0, 8)
+        deleteConfigCorner.Parent = deleteConfigBtn
+
+        local exportImportBtn = Instance.new("TextButton")
+        exportImportBtn.Name = "ExportImportBtn"
+        exportImportBtn.Size = UDim2.new(0.2, -5, 0, 28)
+        exportImportBtn.Position = UDim2.new(0.8, 5, 0, 5)
+        exportImportBtn.BackgroundColor3 = Color3.fromRGB(100, 50, 200)
+        exportImportBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+        exportImportBtn.TextSize = CONFIG.ui.fontSize - 1
+        exportImportBtn.Font = Enum.Font.GothamBold
+        exportImportBtn.Text = "📤 EXPORT/IMPORT"
+        exportImportBtn.TextXAlignment = Enum.TextXAlignment.Center
+        exportImportBtn.Parent = configPanel
+
+        local exportImportCorner = Instance.new("UICorner")
+        exportImportCorner.CornerRadius = UDim.new(0, 8)
+        exportImportCorner.Parent = exportImportBtn
+
+        -- Configuration Status
+        local configStatus = Instance.new("TextLabel")
+        configStatus.Name = "ConfigStatus"
+        configStatus.Size = UDim2.new(1, -10, 0, 25)
+        configStatus.Position = UDim2.new(0, 5, 0, 35)
+        configStatus.BackgroundTransparency = 1
+        configStatus.TextColor3 = Color3.fromRGB(150, 255, 150)
+        configStatus.TextSize = CONFIG.ui.fontSize - 2
+        configStatus.Font = Enum.Font.Gotham
+        configStatus.Text = "📊 Current: " .. currentConfigName .. " • Ready to save/load configurations"
+        configStatus.TextXAlignment = Enum.TextXAlignment.Center
+        configStatus.Parent = configPanel
+
+        -- === ENHANCED KEYBIND SYSTEM ===
+        local bindLabel = Instance.new("TextButton")
+        bindLabel.Name = "BindLabel"
+        bindLabel.Size = UDim2.new(1, 0, 0, 25)
+        bindLabel.Position = UDim2.new(0, 0, 0, 145)
+        bindLabel.BackgroundColor3 = Color3.fromRGB(25, 25, 35)
+        bindLabel.BorderSizePixel = 0
+        bindLabel.Text = "🎮 Keybind: V (Click to change) • Double-tap to toggle"
+        bindLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+        bindLabel.Font = Enum.Font.GothamBold
+        bindLabel.TextSize = CONFIG.ui.fontSize
+        bindLabel.TextXAlignment = Enum.TextXAlignment.Center
+        bindLabel.Parent = mainFrame
+
+        local bindCorner = Instance.new("UICorner")
+        bindCorner.CornerRadius = UDim.new(0, 10)
+        bindCorner.Parent = bindLabel
+
+        -- === ENHANCED CONTROL PANEL ===
+        local controlPanel = Instance.new("Frame")
+        controlPanel.Name = "ControlPanel"
+        controlPanel.Size = UDim2.new(1, 0, 0, 100)
+        controlPanel.Position = UDim2.new(0, 0, 0, 175)
+        controlPanel.BackgroundColor3 = Color3.fromRGB(10, 10, 15)
+        controlPanel.BorderSizePixel = 0
+        controlPanel.Parent = mainFrame
+
+        local controlCorner = Instance.new("UICorner")
+        controlCorner.CornerRadius = UDim.new(0, 12)
+        controlCorner.Parent = controlPanel
+
+        local controlStroke = Instance.new("UIStroke")
+        controlStroke.Color = Color3.fromRGB(50, 100, 50)
+        controlStroke.Thickness = 2
+        controlStroke.Parent = controlPanel
+
+        -- === ENHANCED MODE SELECTOR ===
+        local currentMode = 1
+        local modes = {
+            {name = "Instant Teleport", color = Color3.fromRGB(0, 255, 100), buttonText = "TELEPORT", icon = "⚡"},
+            {name = "Smooth Fast Move", color = Color3.fromRGB(255, 150, 0), buttonText = "FAST MOVE", icon = "🏃"},
+            {name = "AI Smart Walk", color = Color3.fromRGB(100, 200, 255), buttonText = "AI WALK", icon = "🤖"}
+        }
+
+        local modeBtn = Instance.new("TextButton")
+        modeBtn.Name = "ModeBtn"
+        modeBtn.Size = UDim2.new(0.35, -5, 0, 35)
+        modeBtn.Position = UDim2.new(0, 5, 0, 8)
+        modeBtn.BackgroundColor3 = Color3.fromRGB(15, 15, 20)
+        modeBtn.Text = modes[currentMode].icon .. " " .. modes[currentMode].name
+        modeBtn.TextColor3 = modes[currentMode].color
+        modeBtn.Font = Enum.Font.GothamBold
+        modeBtn.TextSize = CONFIG.ui.fontSize
+        modeBtn.TextXAlignment = Enum.TextXAlignment.Center
+        modeBtn.Parent = controlPanel
+
+        local modeBtnCorner = Instance.new("UICorner")
+        modeBtnCorner.CornerRadius = UDim.new(0, 10)
+        modeBtnCorner.Parent = modeBtn
+
+        -- === ENHANCED SPEED CONTROLS ===
+        local speedControlFrame = Instance.new("Frame")
+        speedControlFrame.Name = "SpeedControls"
+        speedControlFrame.Size = UDim2.new(0.35, -5, 0, 35)
+        speedControlFrame.Position = UDim2.new(0.35, 5, 0, 8)
+        speedControlFrame.BackgroundColor3 = Color3.fromRGB(15, 15, 20)
+        speedControlFrame.BorderSizePixel = 0
+        speedControlFrame.Parent = controlPanel
+
+        local speedControlCorner = Instance.new("UICorner")
+        speedControlCorner.CornerRadius = UDim.new(0, 10)
+        speedControlCorner.Parent = speedControlFrame
+
+        local speedTypeLabel = Instance.new("TextLabel")
+        speedTypeLabel.Size = UDim2.new(0.3, 0, 1, 0)
+        speedTypeLabel.Position = UDim2.new(0, 5, 0, 0)
+        speedTypeLabel.BackgroundTransparency = 1
+        speedTypeLabel.Text = "Speed:"
+        speedTypeLabel.TextColor3 = Color3.fromRGB(200, 200, 200)
+        speedTypeLabel.TextSize = CONFIG.ui.fontSize - 2
+        speedTypeLabel.Font = Enum.Font.GothamBold
+        speedTypeLabel.TextXAlignment = Enum.TextXAlignment.Center
+        speedTypeLabel.Parent = speedControlFrame
+
+        local aiSpeedInput = Instance.new("TextBox")
+        aiSpeedInput.Name = "AISpeedInput"
+        aiSpeedInput.Size = UDim2.new(0.32, 0, 0.8, 0)
+        aiSpeedInput.Position = UDim2.new(0.34, 0, 0.1, 0)
+        aiSpeedInput.BackgroundColor3 = Color3.fromRGB(30, 30, 40)
+        aiSpeedInput.Text = tostring(CONFIG.aiWalk.walkSpeed)
+        aiSpeedInput.TextColor3 = Color3.fromRGB(255, 255, 255)
+        aiSpeedInput.TextSize = CONFIG.ui.fontSize - 2
+        aiSpeedInput.Font = Enum.Font.Gotham
+        aiSpeedInput.PlaceholderText = "AI Speed"
+        aiSpeedInput.TextXAlignment = Enum.TextXAlignment.Center
+        aiSpeedInput.Parent = speedControlFrame
+
+        local aiSpeedCorner = Instance.new("UICorner")
+        aiSpeedCorner.CornerRadius = UDim.new(0, 6)
+        aiSpeedCorner.Parent = aiSpeedInput
+
+        local fastSpeedInput = Instance.new("TextBox")
+        fastSpeedInput.Name = "FastSpeedInput"
+        fastSpeedInput.Size = UDim2.new(0.32, 0, 0.8, 0)
+        fastSpeedInput.Position = UDim2.new(0.68, 0, 0.1, 0)
+        fastSpeedInput.BackgroundColor3 = Color3.fromRGB(30, 30, 40)
+        fastSpeedInput.Text = tostring(CONFIG.fastMove.baseSpeed)
+        fastSpeedInput.TextColor3 = Color3.fromRGB(255, 255, 255)
+        fastSpeedInput.TextSize = CONFIG.ui.fontSize - 2
+        fastSpeedInput.Font = Enum.Font.Gotham
+        fastSpeedInput.PlaceholderText = "Fast Speed"
+        fastSpeedInput.TextXAlignment = Enum.TextXAlignment.Center
+        fastSpeedInput.Parent = speedControlFrame
+
+        local fastSpeedCorner = Instance.new("UICorner")
+        fastSpeedCorner.CornerRadius = UDim.new(0, 6)
+        fastSpeedCorner.Parent = fastSpeedInput
+
+        -- === ENHANCED AUTOPLAY CONTROLS ===
+        local autoplayControlFrame = Instance.new("Frame")
+        autoplayControlFrame.Name = "AutoplayControls"
+        autoplayControlFrame.Size = UDim2.new(0.3, -5, 0, 35)
+        autoplayControlFrame.Position = UDim2.new(0.7, 5, 0, 8)
+        autoplayControlFrame.BackgroundColor3 = Color3.fromRGB(15, 15, 20)
+        autoplayControlFrame.BorderSizePixel = 0
+        autoplayControlFrame.Parent = controlPanel
+
+        local autoplayControlCorner = Instance.new("UICorner")
+        autoplayControlCorner.CornerRadius = UDim.new(0, 10)
+        autoplayControlCorner.Parent = autoplayControlFrame
+
+        local autoplayDelayLabel = Instance.new("TextLabel")
+        autoplayDelayLabel.Size = UDim2.new(0.25, 0, 1, 0)
+        autoplayDelayLabel.Position = UDim2.new(0, 5, 0, 0)
+        autoplayDelayLabel.BackgroundTransparency = 1
+        autoplayDelayLabel.Text = "Delay:"
+        autoplayDelayLabel.TextColor3 = Color3.fromRGB(200, 200, 200)
+        autoplayDelayLabel.TextSize = CONFIG.ui.fontSize - 3
+        autoplayDelayLabel.Font = Enum.Font.GothamBold
+        autoplayDelayLabel.TextXAlignment = Enum.TextXAlignment.Center
+        autoplayDelayLabel.Parent = autoplayControlFrame
+
+        local autoplayDelayInput = Instance.new("TextBox")
+        autoplayDelayInput.Name = "AutoplayDelayInput"
+        autoplayDelayInput.Size = UDim2.new(0.35, 0, 0.8, 0)
+        autoplayDelayInput.Position = UDim2.new(0.25, 0, 0.1, 0)
+        autoplayDelayInput.BackgroundColor3 = Color3.fromRGB(30, 30, 40)
+        autoplayDelayInput.Text = tostring(CONFIG.autoplay.delay)
+        autoplayDelayInput.TextColor3 = Color3.fromRGB(255, 255, 255)
+        autoplayDelayInput.TextSize = CONFIG.ui.fontSize - 3
+        autoplayDelayInput.Font = Enum.Font.Gotham
+        autoplayDelayInput.PlaceholderText = "0.2s"
+        autoplayDelayInput.TextXAlignment = Enum.TextXAlignment.Center
+        autoplayDelayInput.Parent = autoplayControlFrame
+
+        local autoplayDelayCorner = Instance.new("UICorner")
+        autoplayDelayCorner.CornerRadius = UDim.new(0, 6)
+        autoplayDelayCorner.Parent = autoplayDelayInput
+
+        local repeatCountInput = Instance.new("TextBox")
+        repeatCountInput.Name = "RepeatCountInput"
+        repeatCountInput.Size = UDim2.new(0.35, 0, 0.8, 0)
+        repeatCountInput.Position = UDim2.new(0.63, 0, 0.1, 0)
+        repeatCountInput.BackgroundColor3 = Color3.fromRGB(30, 30, 40)
+        repeatCountInput.Text = tostring(CONFIG.autoplay.repeatCount)
+        repeatCountInput.TextColor3 = Color3.fromRGB(255, 255, 255)
+        repeatCountInput.TextSize = CONFIG.ui.fontSize - 3
+        repeatCountInput.Font = Enum.Font.Gotham
+        repeatCountInput.PlaceholderText = "3x"
+        repeatCountInput.TextXAlignment = Enum.TextXAlignment.Center
+        repeatCountInput.Parent = autoplayControlFrame
+
+        local repeatCountCorner = Instance.new("UICorner")
+        repeatCountCorner.CornerRadius = UDim.new(0, 6)
+        repeatCountCorner.Parent = repeatCountInput
+
+        -- === ENHANCED AUTOPLAY MAIN PANEL ===
+        local autoplayMainFrame = Instance.new("Frame")
+        autoplayMainFrame.Name = "AutoplayMainFrame"
+        autoplayMainFrame.Size = UDim2.new(1, 0, 0, 50)
+        autoplayMainFrame.Position = UDim2.new(0, 0, 0, 48)
+        autoplayMainFrame.BackgroundColor3 = Color3.fromRGB(12, 12, 18)
+        autoplayMainFrame.BorderSizePixel = 0
+        autoplayMainFrame.Parent = controlPanel
+
+        local autoplayMainCorner = Instance.new("UICorner")
+        autoplayMainCorner.CornerRadius = UDim.new(0, 10)
+        autoplayMainCorner.Parent = autoplayMainFrame
+
+        local autoplayMainStroke = Instance.new("UIStroke")
+        autoplayMainStroke.Color = Color3.fromRGB(100, 255, 100)
+        autoplayMainStroke.Thickness = 2
+        autoplayMainStroke.Parent = autoplayMainFrame
+
+        local autoplayBtn = Instance.new("TextButton")
+        autoplayBtn.Name = "AutoplayBtn"
+        autoplayBtn.Size = UDim2.new(0.2, -5, 1, -4)
+        autoplayBtn.Position = UDim2.new(0, 2, 0, 2)
+        autoplayBtn.BackgroundColor3 = Color3.fromRGB(0, 200, 0)
+        autoplayBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+        autoplayBtn.TextSize = CONFIG.ui.fontSize
+        autoplayBtn.Font = Enum.Font.GothamBold
+        autoplayBtn.Text = "▶️ START AUTOPLAY"
+        autoplayBtn.TextXAlignment = Enum.TextXAlignment.Center
+        autoplayBtn.Parent = autoplayMainFrame
+
+        local autoplayBtnCorner = Instance.new("UICorner")
+        autoplayBtnCorner.CornerRadius = UDim.new(0, 8)
+        autoplayBtnCorner.Parent = autoplayBtn
+
+        local autoplayProgress = Instance.new("Frame")
+        autoplayProgress.Name = "AutoplayProgress"
+        autoplayProgress.Size = UDim2.new(0.45, -5, 0, 20)
+        autoplayProgress.Position = UDim2.new(0.2, 3, 0, 5)
+        autoplayProgress.BackgroundColor3 = Color3.fromRGB(25, 25, 35)
+        autoplayProgress.BorderSizePixel = 0
+        autoplayProgress.Parent = autoplayMainFrame
+
+        local progressCorner = Instance.new("UICorner")
+        progressCorner.CornerRadius = UDim.new(0, 10)
+        progressCorner.Parent = autoplayProgress
+
+        local progressBar = Instance.new("Frame")
+        progressBar.Name = "ProgressBar"
+        progressBar.Size = UDim2.new(0, 0, 1, 0)
+        progressBar.Position = UDim2.new(0, 0, 0, 0)
+        progressBar.BackgroundColor3 = Color3.fromRGB(0, 255, 150)
+        progressBar.BorderSizePixel = 0
+        progressBar.Parent = autoplayProgress
+
+        local progressBarCorner = Instance.new("UICorner")
+        progressBarCorner.CornerRadius = UDim.new(0, 10)
+        progressBarCorner.Parent = progressBar
+
+        local progressLabel = Instance.new("TextLabel")
+        progressLabel.Name = "ProgressLabel"
+        progressLabel.Size = UDim2.new(1, 0, 1, 0)
+        progressLabel.Position = UDim2.new(0, 0, 0, 0)
+        progressLabel.BackgroundTransparency = 1
+        progressLabel.Text = "Ready"
+        progressLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+        progressLabel.TextSize = CONFIG.ui.fontSize - 2
+        progressLabel.Font = Enum.Font.GothamBold
+        progressLabel.TextXAlignment = Enum.TextXAlignment.Center
+        progressLabel.Parent = autoplayProgress
+
+        local autoplayStatus = Instance.new("TextLabel")
+        autoplayStatus.Name = "AutoplayStatus"
+        autoplayStatus.Size = UDim2.new(0.35, -5, 1, -4)
+        autoplayStatus.Position = UDim2.new(0.65, 3, 0, 2)
+        autoplayStatus.BackgroundTransparency = 1
+        autoplayStatus.TextColor3 = Color3.fromRGB(200, 200, 200)
+        autoplayStatus.TextSize = CONFIG.ui.fontSize - 1
+        autoplayStatus.Font = Enum.Font.Gotham
+        autoplayStatus.Text = "🔄 Status: Ready for epic adventures!"
+        autoplayStatus.TextXAlignment = Enum.TextXAlignment.Left
+        autoplayStatus.TextWrapped = true
+        autoplayStatus.Parent = autoplayMainFrame
+
+        -- === ENHANCED SLOTS SYSTEM (30 slots with better layout) ===
+        local slotsFrame = Instance.new("ScrollingFrame")
+        slotsFrame.Name = "SlotsFrame"
+        slotsFrame.Size = UDim2.new(1, 0, 0, 420)
+        slotsFrame.Position = UDim2.new(0, 0, 0, 280)
+        slotsFrame.BackgroundColor3 = Color3.fromRGB(8, 8, 12)
+        slotsFrame.BorderSizePixel = 0
+        slotsFrame.ScrollBarThickness = 8
+        slotsFrame.CanvasSize = UDim2.new(0, 0, 0, 1400)
+        slotsFrame.Parent = mainFrame
+
+        local slotsCorner = Instance.new("UICorner")
+        slotsCorner.CornerRadius = UDim.new(0, 12)
+        slotsCorner.Parent = slotsFrame
+
+        local slotsStroke = Instance.new("UIStroke")
+        slotsStroke.Color = Color3.fromRGB(50, 50, 100)
+        slotsStroke.Thickness = 2
+        slotsStroke.Parent = slotsFrame
+
+        local slots = {}
+        for i = 1, 30 do
+            local column = ((i - 1) % 3)
+            local row = math.floor((i - 1) / 3)
+            
+            local slot = Instance.new("Frame")
+            slot.Name = "Slot" .. i
+            slot.Size = UDim2.new(0.32, 0, 0, 42)
+            slot.Position = UDim2.new(
+                column * 0.33 + 0.005, 0,
+                0, 8 + row * 47
+            )
+            slot.BackgroundColor3 = Color3.fromRGB(18, 18, 25)
+            slot.BorderSizePixel = 0
+            slot.Parent = slotsFrame
+
+            local slotCorner = Instance.new("UICorner")
+            slotCorner.CornerRadius = UDim.new(0, 10)
+            slotCorner.Parent = slot
+
+            local slotStroke = Instance.new("UIStroke")
+            slotStroke.Color = Color3.fromRGB(60, 60, 80)
+            slotStroke.Thickness = 1
+            slotStroke.Parent = slot
+
+            -- Enhanced slot number
+            local slotNumber = Instance.new("TextLabel")
+            slotNumber.Size = UDim2.new(0.15, 0, 1, 0)
+            slotNumber.Position = UDim2.new(0, 0, 0, 0)
+            slotNumber.BackgroundTransparency = 1
+            slotNumber.Text = tostring(i)
+            slotNumber.TextColor3 = Color3.fromRGB(100, 150, 255)
+            slotNumber.TextSize = CONFIG.ui.fontSize + 1
+            slotNumber.Font = Enum.Font.GothamBold
+            slotNumber.TextXAlignment = Enum.TextXAlignment.Center
+            slotNumber.Parent = slot
+
+            -- Enhanced name box
+            local nameBox = Instance.new("TextBox")
+            nameBox.Name = "NameBox"
+            nameBox.Size = UDim2.new(0.4, -2, 0, 26)
+            nameBox.Position = UDim2.new(0.15, 1, 0, 8)
+            nameBox.BackgroundColor3 = Color3.fromRGB(30, 30, 40)
+            nameBox.TextColor3 = Color3.fromRGB(255, 255, 255)
+            nameBox.TextSize = CONFIG.ui.fontSize - 1
+            nameBox.Font = Enum.Font.Gotham
+            nameBox.Text = "Checkpoint " .. i
+            nameBox.ClearTextOnFocus = false
+            nameBox.TextXAlignment = Enum.TextXAlignment.Center
+            nameBox.Parent = slot
+
+            local nameCorner = Instance.new("UICorner")
+            nameCorner.CornerRadius = UDim.new(0, 6)
+            nameCorner.Parent = nameBox
+
+            -- Enhanced save button
+            local saveSlotBtn = Instance.new("TextButton")
+            saveSlotBtn.Name = "Save"
+            saveSlotBtn.Size = UDim2.new(0.21, -1, 0, 26)
+            saveSlotBtn.Position = UDim2.new(0.56, 0, 0, 8)
+            saveSlotBtn.BackgroundColor3 = Color3.fromRGB(0, 220, 0)
+            saveSlotBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+            saveSlotBtn.TextSize = CONFIG.ui.fontSize - 2
+            saveSlotBtn.Font = Enum.Font.GothamBold
+            saveSlotBtn.Text = "💾 SAVE"
+            saveSlotBtn.TextXAlignment = Enum.TextXAlignment.Center
+            saveSlotBtn.Parent = slot
+
+            local saveCorner = Instance.new("UICorner")
+            saveCorner.CornerRadius = UDim.new(0, 6)
+            saveCorner.Parent = saveSlotBtn
+
+            -- Enhanced action button
+            local actionBtn = Instance.new("TextButton")
+            actionBtn.Name = "Action"
+            actionBtn.Size = UDim2.new(0.23, -1, 0, 26)
+            actionBtn.Position = UDim2.new(0.77, 1, 0, 8)
+            actionBtn.BackgroundColor3 = modes[currentMode].color
+            actionBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+            actionBtn.TextSize = CONFIG.ui.fontSize - 3
+            actionBtn.Font = Enum.Font.GothamBold
+            actionBtn.Text = modes[currentMode].icon .. " " .. modes[currentMode].buttonText
+            actionBtn.TextXAlignment = Enum.TextXAlignment.Center
+            actionBtn.Parent = slot
+
+            local actionCorner = Instance.new("UICorner")
+            actionCorner.CornerRadius = UDim.new(0, 6)
+            actionCorner.Parent = actionBtn
+
+            slots[i] = {
+                frame = slot,
+                nameBox = nameBox,
+                saveBtn = saveSlotBtn,
+                actionBtn = actionBtn,
+                slotStroke = slotStroke,
+                data = nil
+            }
+        end
+
+        -- === ENHANCED UTILITY PANEL ===
+        local utilityFrame = Instance.new("Frame")
+        utilityFrame.Name = "UtilityFrame"
+        utilityFrame.Size = UDim2.new(1, 0, 0, 40)
+        utilityFrame.Position = UDim2.new(0, 0, 0, 705)
+        utilityFrame.BackgroundColor3 = Color3.fromRGB(15, 15, 20)
+        utilityFrame.BorderSizePixel = 0
+        utilityFrame.Parent = mainFrame
+
+        local utilityCorner = Instance.new("UICorner")
+        utilityCorner.CornerRadius = UDim.new(0, 12)
+        utilityCorner.Parent = utilityFrame
+
+        local utilityStroke = Instance.new("UIStroke")
+        utilityStroke.Color = Color3.fromRGB(100, 50, 150)
+        utilityStroke.Thickness = 2
+        utilityStroke.Parent = utilityFrame
+
+        local reloadBtn = Instance.new("TextButton")
+        reloadBtn.Name = "ReloadBtn"
+        reloadBtn.Size = UDim2.new(0.2, -5, 1, -4)
+        reloadBtn.Position = UDim2.new(0.05, 0, 0, 2)
+        reloadBtn.BackgroundColor3 = Color3.fromRGB(150, 100, 0)
+        reloadBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+        reloadBtn.TextSize = CONFIG.ui.fontSize
+        reloadBtn.Font = Enum.Font.GothamBold
+        reloadBtn.Text = "🔄 RELOAD CHARACTER"
+        reloadBtn.TextXAlignment = Enum.TextXAlignment.Center
+        reloadBtn.Parent = utilityFrame
+
+        local reloadCorner = Instance.new("UICorner")
+        reloadCorner.CornerRadius = UDim.new(0, 10)
+        reloadCorner.Parent = reloadBtn
+
+        local clearAllBtn = Instance.new("TextButton")
+        clearAllBtn.Name = "ClearAllBtn"
+        clearAllBtn.Size = UDim2.new(0.2, -5, 1, -4)
+        clearAllBtn.Position = UDim2.new(0.28, 0, 0, 2)
+        clearAllBtn.BackgroundColor3 = Color3.fromRGB(200, 50, 50)
+        clearAllBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+        clearAllBtn.TextSize = CONFIG.ui.fontSize
+        clearAllBtn.Font = Enum.Font.GothamBold
+        clearAllBtn.Text = "🗑️ CLEAR ALL"
+        clearAllBtn.TextXAlignment = Enum.TextXAlignment.Center
+        clearAllBtn.Parent = utilityFrame
+
+        local clearCorner = Instance.new("UICorner")
+        clearCorner.CornerRadius = UDim.new(0, 10)
+        clearCorner.Parent = clearAllBtn
+
+        local settingsBtn = Instance.new("TextButton")
+        settingsBtn.Name = "SettingsBtn"
+        settingsBtn.Size = UDim2.new(0.2, -5, 1, -4)
+        settingsBtn.Position = UDim2.new(0.51, 0, 0, 2)
+        settingsBtn.BackgroundColor3 = Color3.fromRGB(50, 100, 200)
+        settingsBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+        settingsBtn.TextSize = CONFIG.ui.fontSize
+        settingsBtn.Font = Enum.Font.GothamBold
+        settingsBtn.Text = "⚙️ SETTINGS"
+        settingsBtn.TextXAlignment = Enum.TextXAlignment.Center
+        settingsBtn.Parent = utilityFrame
+
+        local settingsCorner = Instance.new("UICorner")
+        settingsCorner.CornerRadius = UDim.new(0, 10)
+        settingsCorner.Parent = settingsBtn
+
+        local aboutBtn = Instance.new("TextButton")
+        aboutBtn.Name = "AboutBtn"
+        aboutBtn.Size = UDim2.new(0.2, -5, 1, -4)
+        aboutBtn.Position = UDim2.new(0.74, 0, 0, 2)
+        aboutBtn.BackgroundColor3 = Color3.fromRGB(100, 50, 200)
+        aboutBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+        aboutBtn.TextSize = CONFIG.ui.fontSize
+        aboutBtn.Font = Enum.Font.GothamBold
+        aboutBtn.Text = "📖 ABOUT V3.0"
+        aboutBtn.TextXAlignment = Enum.TextXAlignment.Center
+        aboutBtn.Parent = utilityFrame
+
+        local aboutCorner = Instance.new("UICorner")
+        aboutCorner.CornerRadius = UDim.new(0, 10)
+        aboutCorner.Parent = aboutBtn
+
+        -- === VARIABLES AND FUNCTIONS ===
+        local root = nil
+        local humanoid = nil
+        local currentBind = Enum.KeyCode.V
+        local isChangingBind = false
+
+        -- === ENHANCED CHARACTER DETECTION ===
+        local function updateCharacter()
+            local char = player.Character
+            if not char then
+                char = player.CharacterAdded:Wait()
+            end
+            
+            local success = pcall(function()
+                char:WaitForChild("HumanoidRootPart", 10)
+                char:WaitForChild("Humanoid", 10)
+                root = char.HumanoidRootPart
+                humanoid = char.Humanoid
+            end)
+            
+            if success then
+                createAdvancedNotification("✅ Character Loaded", "All systems operational and ready!", 2, "success", "👤")
+            else
+                createAdvancedNotification("❌ Character Error", "Could not load character properly", 3, "error", "⚠️")
+            end
+        end
+
+        -- === REVOLUTIONARY CONFIGURATION FUNCTIONS ===
+        
+        -- Save current configuration
+        local function saveCurrentConfiguration()
+            local name = configNameInput.Text
+            if not name or name == "" then
+                createAdvancedNotification("❌ Invalid Name", "Please enter a configuration name", 3, "error", "📝")
+                return
+            end
+            
+            -- Collect current checkpoint data
+            local checkpointData = {}
+            for i, slot in ipairs(slots) do
+                if slot.data then
+                    checkpointData[i] = {
+                        name = slot.nameBox.Text,
+                        cframe = {
+                            position = {slot.data.cframe.Position.X, slot.data.cframe.Position.Y, slot.data.cframe.Position.Z},
+                            rotation = {slot.data.cframe:ToEulerAnglesXYZ()}
+                        },
+                        cameraCFrame = {
+                            position = {slot.data.cameraCFrame.Position.X, slot.data.cameraCFrame.Position.Y, slot.data.cameraCFrame.Position.Z},
+                            rotation = {slot.data.cameraCFrame:ToEulerAnglesXYZ()}
+                        },
+                        state = tostring(slot.data.state),
+                        timestamp = slot.data.timestamp
+                    }
+                end
+            end
+            
+            local success, message = configManager:saveConfiguration(name, checkpointData, CONFIG)
+            
+            if success then
+                currentConfigName = name
+                loadConfigBtn.Text = "📂 " .. name
+                configStatus.Text = "📊 Saved: " .. name .. " • " .. message
+                createAdvancedNotification("💾 Configuration Saved!", name .. " with " .. (#checkpointData) .. " checkpoints", 4, "config", "⭐")
+            else
+                createAdvancedNotification("❌ Save Failed", message, 3, "error", "💾")
+            end
+        end
+        
+        -- Load configuration
+        local function loadConfigurationByName(name)
+            local success, configData = configManager:loadConfiguration(name)
+            
+            if not success then
+                createAdvancedNotification("❌ Load Failed", configData, 3, "error", "📂")
+                return
+            end
+            
+            -- Clear current slots
+            for i, slot in ipairs(slots) do
+                slot.data = nil
+                slot.slotStroke.Color = Color3.fromRGB(60, 60, 80)
+            end
+            
+            -- Load checkpoint data
+            local loadedCount = 0
+            if configData.checkpoints then
+                for i, cpData in pairs(configData.checkpoints) do
+                    if slots[i] and cpData then
+                        slots[i].nameBox.Text = cpData.name or ("Checkpoint " .. i)
+                        
+                        -- Reconstruct CFrame data
+                        local pos = Vector3.new(unpack(cpData.cframe.position))
+                        local rot = Vector3.new(unpack(cpData.cframe.rotation))
+                        local cframe = CFrame.new(pos) * CFrame.fromEulerAnglesXYZ(rot.X, rot.Y, rot.Z)
+                        
+                        local camPos = Vector3.new(unpack(cpData.cameraCFrame.position))
+                        local camRot = Vector3.new(unpack(cpData.cameraCFrame.rotation))
+                        local camCFrame = CFrame.new(camPos) * CFrame.fromEulerAnglesXYZ(camRot.X, camRot.Y, camRot.Z)
+                        
+                        slots[i].data = {
+                            cframe = cframe,
+                            cameraCFrame = camCFrame,
+                            state = Enum.HumanoidStateType[cpData.state] or Enum.HumanoidStateType.Running,
+                            name = cpData.name,
+                            timestamp = cpData.timestamp
+                        }
+                        
+                        -- Visual feedback
+                        slots[i].slotStroke.Color = Color3.fromRGB(0, 255, 100)
+                        loadedCount = loadedCount + 1
+                    end
+                end
+            end
+            
+            -- Load settings if available
+            if configData.settings then
+                CONFIG = configData.settings
+                aiSpeedInput.Text = tostring(CONFIG.aiWalk.walkSpeed)
+                fastSpeedInput.Text = tostring(CONFIG.fastMove.baseSpeed)
+                autoplayDelayInput.Text = tostring(CONFIG.autoplay.delay)
+                repeatCountInput.Text = tostring(CONFIG.autoplay.repeatCount)
+            end
+            
+            currentConfigName = name
+            loadConfigBtn.Text = "📂 " .. name
+            configStatus.Text = "📊 Loaded: " .. name .. " • " .. loadedCount .. " checkpoints restored"
+            createAdvancedNotification("📂 Configuration Loaded!", name .. " with " .. loadedCount .. " checkpoints", 4, "config", "✨")
+        end
+        
+        -- Delete configuration
+        local function deleteCurrentConfiguration()
+            if currentConfigName == "Default" then
+                createAdvancedNotification("❌ Cannot Delete", "Default configuration is protected", 3, "error", "🛡️")
+                return
+            end
+            
+            local success, message = configManager:deleteConfiguration(currentConfigName)
+            
+            if success then
+                currentConfigName = "Default"
+                loadConfigBtn.Text = "📂 Default"
+                configStatus.Text = "📊 " .. message
+                createAdvancedNotification("🗑️ Configuration Deleted", message, 3, "warning", "🧹")
+                loadConfigurationByName("Default")
+            else
+                createAdvancedNotification("❌ Delete Failed", message, 3, "error", "🗑️")
+            end
+        end
+        
+        -- Export/Import functions
+        local function exportCurrentConfiguration()
+            local jsonData, message = configManager:exportConfiguration(currentConfigName)
+            
+            if jsonData then
+                if setclipboard then
+                    setclipboard(jsonData)
+                    createAdvancedNotification("📤 Export Success", "Configuration copied to clipboard!", 4, "success", "📋")
+                else
+                    createAdvancedNotification("📤 Export Ready", "Configuration data prepared (clipboard unavailable)", 3, "info", "📋")
+                    print("EXPORTED CONFIG DATA:")
+                    print(jsonData)
+                end
+            else
+                createAdvancedNotification("❌ Export Failed", message, 3, "error", "📤")
+            end
+        end
+        
+        local function importConfiguration()
+            if not getclipboard then
+                createAdvancedNotification("❌ Import Unavailable", "Clipboard access not available", 3, "error", "📥")
+                return
+            end
+            
+            local clipboardData = getclipboard()
+            if not clipboardData or clipboardData == "" then
+                createAdvancedNotification("❌ No Data", "Clipboard is empty", 2, "warning", "📋")
+                return
+            end
+            
+            local success, message = configManager:importConfiguration(clipboardData)
+            
+            if success then
+                createAdvancedNotification("📥 Import Success", message, 4, "success", "✨")
+            else
+                createAdvancedNotification("❌ Import Failed", message, 3, "error", "📥")
+            end
+        end
+
+        -- Show configuration dropdown
+        local function showConfigurationDropdown()
+            local configs = configManager:listConfigurations()
+            
+            if #configs == 0 then
+                createAdvancedNotification("📂 No Configurations", "No saved configurations found", 2, "info", "📁")
+                return
+            end
+            
+            -- Create dropdown menu (simplified - you can enhance this)
+            createAdvancedNotification("📋 Available Configs", "Check console for full list", 3, "info", "📂")
+            
+            print("=== AVAILABLE CONFIGURATIONS ===")
+            for i, config in ipairs(configs) do
+                print(i .. ". " .. config.name .. " (" .. config.checkpointCount .. " checkpoints)")
+            end
+            print("Use configuration name in the input field to load")
+        end
+
+        -- === ENHANCED MODE SWITCHING ===
+        modeBtn.MouseButton1Click:Connect(function()
+            currentMode = currentMode % 3 + 1
+            
+            modeBtn.Text = modes[currentMode].icon .. " " .. modes[currentMode].name
+            modeBtn.TextColor3 = modes[currentMode].color
+            
+            speedTypeLabel.Text = currentMode == 3 and "AI Walk:" or currentMode == 2 and "Fast Speed:" or "Speed:"
+            
+            for i, slot in ipairs(slots) do
+                slot.actionBtn.Text = modes[currentMode].icon .. " " .. modes[currentMode].buttonText
+                slot.actionBtn.BackgroundColor3 = modes[currentMode].color
+            end
+            
+            createAdvancedNotification("🔄 Mode Switched", "Now using " .. modes[currentMode].name .. " mode", 2, "info", modes[currentMode].icon)
+        end)
+
+        -- === ENHANCED INPUT VALIDATIONS ===
+        aiSpeedInput.FocusLost:Connect(function()
+            local speed = tonumber(aiSpeedInput.Text)
+            if speed and speed > 0 and speed <= 500 then
+                CONFIG.aiWalk.walkSpeed = speed
+                createAdvancedNotification("⚡ AI Walk Speed", "Updated to " .. speed, 2, "success", "🤖")
+                if CONFIG.features.autoSave then
+                    saveCurrentConfiguration()
+                end
+            else
+                aiSpeedInput.Text = tostring(CONFIG.aiWalk.walkSpeed)
+                createAdvancedNotification("⚠️ Invalid Speed", "AI Walk speed must be 1-500", 2, "warning", "⚠️")
+            end
+        end)
+
+        fastSpeedInput.FocusLost:Connect(function()
+            local speed = tonumber(fastSpeedInput.Text)
+            if speed and speed >= CONFIG.fastMove.minSpeed and speed <= CONFIG.fastMove.maxSpeed then
+                CONFIG.fastMove.baseSpeed = speed
+                createAdvancedNotification("⚡ Fast Move Speed", "Updated to " .. speed .. "x multiplier", 2, "success", "🏃")
+                if CONFIG.features.autoSave then
+                    saveCurrentConfiguration()
+                end
+            else
+                fastSpeedInput.Text = tostring(CONFIG.fastMove.baseSpeed)
+                createAdvancedNotification("⚠️ Invalid Speed", "Fast Move speed must be " .. CONFIG.fastMove.minSpeed .. "-" .. CONFIG.fastMove.maxSpeed, 3, "warning", "⚠️")
+            end
+        end)
+
+        autoplayDelayInput.FocusLost:Connect(function()
+            local delay = tonumber(autoplayDelayInput.Text)
+            if delay and delay >= CONFIG.autoplay.minDelay and delay <= CONFIG.autoplay.maxDelay then
+                CONFIG.autoplay.delay = delay
+                createAdvancedNotification("⏱️ Autoplay Delay", "Updated to " .. delay .. " seconds", 2, "success", "⏰")
+                if CONFIG.features.autoSave then
+                    saveCurrentConfiguration()
+                end
+            else
+                autoplayDelayInput.Text = tostring(CONFIG.autoplay.delay)
+                createAdvancedNotification("⚠️ Invalid Delay", "Delay must be " .. CONFIG.autoplay.minDelay .. "-" .. CONFIG.autoplay.maxDelay .. " seconds", 3, "warning", "⚠️")
+            end
+        end)
+
+        repeatCountInput.FocusLost:Connect(function()
+            local count = tonumber(repeatCountInput.Text)
+            if count and count >= 1 and count <= CONFIG.autoplay.maxRepeats then
+                CONFIG.autoplay.repeatCount = count
+                createAdvancedNotification("🔄 Repeat Count", "Updated to " .. count .. " repetitions", 2, "success", "🔢")
+                if CONFIG.features.autoSave then
+                    saveCurrentConfiguration()
+                end
+            else
+                repeatCountInput.Text = tostring(CONFIG.autoplay.repeatCount)
+                createAdvancedNotification("⚠️ Invalid Count", "Repeat count must be 1-" .. CONFIG.autoplay.maxRepeats, 2, "warning", "⚠️")
+            end
+        end)
+
+        -- === ENHANCED MOVEMENT FUNCTIONS ===
+        local teleportCooldown = false
+        local function enhancedTeleport(data)
+            if not root or not data or teleportCooldown then return end
+            
+            teleportCooldown = true
+            
+            pcall(function()
+                -- Enhanced teleportation with safety checks
+                root.Anchored = true
+                humanoid.AutoRotate = false
+                
+                RunService.Heartbeat:Wait()
+                
+                -- Smooth teleportation
+                if CONFIG.features.smoothTransitions then
+                    local startCFrame = root.CFrame
+                    local steps = 5
+                    
+                    for i = 1, steps do
+                        local alpha = i / steps
+                        root.CFrame = startCFrame:Lerp(data.cframe, alpha)
+                        Camera.CFrame = Camera.CFrame:Lerp(data.cameraCFrame, alpha)
+                        task.wait(0.01)
+                    end
+                else
+                    root.CFrame = data.cframe
+                    Camera.CFrame = data.cameraCFrame
+                end
+                
+                -- Enhanced velocity handling
+                if root:FindFirstChild("AssemblyLinearVelocity") then
+                    root.AssemblyLinearVelocity = (data.state == Enum.HumanoidStateType.Freefall)
+                        and Vector3.new(0, -15, 0)
+                        or Vector3.new(0, 0, 0)
+                end
+                
+                task.wait(0.05)
+                humanoid:ChangeState(data.state)
+                
+                task.spawn(function()
+                    task.wait(0.2)
+                    if root and root.Parent then
+                        root.Anchored = false
+                        humanoid.AutoRotate = true
+                    end
+                    task.wait(0.1)
+                    teleportCooldown = false
+                end)
+            end)
+
+            createAdvancedNotification("⚡ Teleported Successfully", "Arrived at " .. (data.name or "checkpoint"), 2, "success", "📍")
+        end
+
+        local function enhancedFastMove(data)
+            if not root or not data then return end
+
+            local startPos = root.Position
+            local endPos = data.cframe.Position
+            local distance = (endPos - startPos).Magnitude
+            
+            -- Enhanced speed calculation with better physics
+            local userSpeed = CONFIG.fastMove.baseSpeed
+            local acceleration = CONFIG.fastMove.acceleration
+            local smoothness = CONFIG.fastMove.smoothness
+            
+            local moveSpeed = math.min(distance * userSpeed * acceleration, CONFIG.fastMove.maxSpeed)
+            local duration = (distance / moveSpeed) * smoothness
+            
+            duration = math.max(duration, 0.1)
+
+            -- Enhanced tweening with better easing
+            local moveTween = TweenService:Create(
+                root,
+                TweenInfo.new(
+                    duration,
+                    CONFIG.fastMove.easingStyle,
+                    CONFIG.fastMove.easingDirection
+                ),
+                {CFrame = data.cframe}
+            )
+
+            local cameraTween = TweenService:Create(
+                Camera,
+                TweenInfo.new(
+                    duration,
+                    CONFIG.fastMove.easingStyle,
+                    CONFIG.fastMove.easingDirection
+                ),
+                {CFrame = data.cameraCFrame}
+            )
+
+            root.Anchored = true
+            moveTween:Play()
+            cameraTween:Play()
+
+            moveTween.Completed:Connect(function()
+                root.Anchored = false
+                humanoid:ChangeState(data.state)
+            end)
+
+            createAdvancedNotification("🏃 Fast Moving", "To " .. (data.name or "checkpoint") .. " at " .. math.floor(moveSpeed) .. " speed", 2, "info", "💨")
+        end
+
+        local function enhancedAIWalk(data)
+            if not root or not humanoid or not data then return end
+
+            createAdvancedNotification("🤖 AI Pathfinding", "Calculating optimal route with advanced algorithms...", 2, "info", "🗺️")
+            
+            createPathToDestination(root.Position, data.cframe.Position, function(waypoints)
+                if waypoints and #waypoints > 0 then
+                    createAdvancedNotification("🗺️ Route Calculated", "AI found path with " .. #waypoints .. " waypoints", 2, "success", "✅")
+                    aiWalkToDestination(humanoid, root, waypoints, CONFIG.aiWalk.walkSpeed)
+                else
+                    createAdvancedNotification("❌ No Path Found", "AI could not calculate route to destination", 3, "error", "🚫")
+                end
+            end)
+        end
+
+        -- === ENHANCED AUTOPLAY SYSTEM ===
+        local function updateProgressBar(current, total)
+            local progress = math.min(current / math.max(total, 1), 1)
+            TweenService:Create(progressBar, TweenInfo.new(0.3 * CONFIG.ui.animationSpeed, Enum.EasingStyle.Quart), {
+                Size = UDim2.new(progress, 0, 1, 0)
+            }):Play()
+            progressLabel.Text = current .. "/" .. total
+        end
+
+        local function stopAutoplay()
+            CONFIG.autoplay.isPlaying = false
+            if CONFIG.autoplay.connection then
+                CONFIG.autoplay.connection:Disconnect()
+                CONFIG.autoplay.connection = nil
+            end
+            autoplayBtn.Text = "▶️ START AUTOPLAY"
+            autoplayBtn.BackgroundColor3 = Color3.fromRGB(0, 200, 0)
+            autoplayStatus.Text = "🔄 Status: Ready for epic adventures!"
+            updateProgressBar(0, 1)
+            createAdvancedNotification("⏹️ Autoplay Stopped", "Autoplay sequence terminated by user", 2, "warning", "✋")
+        end
+
+        local function startEnhancedAutoplay()
+            if CONFIG.autoplay.isPlaying then
+                stopAutoplay()
+                return
+            end
+            
+            -- Enhanced slot detection
+            local savedSlots = {}
+            for i, slot in ipairs(slots) do
+                if slot.data then
+                    table.insert(savedSlots, {
+                        index = i, 
+                        slot = slot,
+                        priority = slot.data.timestamp or 0
+                    })
+                end
+            end
+            
+            if #savedSlots == 0 then
+                createAdvancedNotification("❌ No Saved Checkpoints", "Please save some checkpoints first!", 3, "error", "💾")
+                return
+            end
+            
+            -- Enhanced sorting options
+            if CONFIG.autoplay.shuffleOrder then
+                -- Shuffle slots for random order
+                for i = #savedSlots, 2, -1 do
+                    local j = math.random(i)
+                    savedSlots[i], savedSlots[j] = savedSlots[j], savedSlots[i]
+                end
+            else
+                -- Sort by index (default)
+                table.sort(savedSlots, function(a, b) return a.index < b.index end)
+            end
+            
+            CONFIG.autoplay.isPlaying = true
+            CONFIG.autoplay.currentSlot = 1
+            autoplayBtn.Text = "⏹️ STOP AUTOPLAY"
+            autoplayBtn.BackgroundColor3 = Color3.fromRGB(200, 50, 50)
+            
+            createAdvancedNotification("🎮 Autoplay Started", "Processing " .. #savedSlots .. " checkpoints with " .. CONFIG.autoplay.repeatCount .. " repeats each", 4, "success", "▶️")
+            
+            local totalActions = #savedSlots * CONFIG.autoplay.repeatCount
+            local currentAction = 0
+            local startTime = tick()
+            
+            local function processNextSlot()
+                if not CONFIG.autoplay.isPlaying then return end
+                
+                if CONFIG.autoplay.currentSlot > #savedSlots then
+                    -- Enhanced completion handling
+                    CONFIG.autoplay.isPlaying = false
+                    autoplayBtn.Text = "▶️ START AUTOPLAY"
+                    autoplayBtn.BackgroundColor3 = Color3.fromRGB(0, 200, 0)
+                    
+                    local totalTime = tick() - startTime
+                    autoplayStatus.Text = "✅ Completed in " .. math.floor(totalTime) .. " seconds!"
+                    updateProgressBar(totalActions, totalActions)
+                    
+                    createAdvancedNotification("✅ Autoplay Complete!", "All " .. #savedSlots .. " checkpoints visited " .. CONFIG.autoplay.repeatCount .. " times in " .. math.floor(totalTime) .. "s", 5, "success", "🎉")
+                    
+                    -- Auto-restart if enabled
+                    if CONFIG.autoplay.autoRestart then
+                        task.wait(2)
+                        startEnhancedAutoplay()
+                    end
+                    return
+                end
+                
+                local currentSlotData = savedSlots[CONFIG.autoplay.currentSlot]
+                autoplayStatus.Text = "🎯 Processing " .. currentSlotData.slot.nameBox.Text .. " (" .. CONFIG.autoplay.currentSlot .. "/" .. #savedSlots .. ")"
+                
+                -- Enhanced action execution with error handling
+                local actionCount = 0
+                local function executeAction()
+                    if not CONFIG.autoplay.isPlaying then return end
+                    
+                    actionCount = actionCount + 1
+                    currentAction = currentAction + 1
+                    
+                    updateProgressBar(currentAction, totalActions)
+                    
+                    -- Enhanced error handling
+                    local success = pcall(function()
+                        if currentMode == 1 then
+                            enhancedTeleport(currentSlotData.slot.data)
+                        elseif currentMode == 2 then
+                            enhancedFastMove(currentSlotData.slot.data)
+                        elseif currentMode == 3 then
+                            enhancedAIWalk(currentSlotData.slot.data)
+                        end
+                    end)
+                    
+                    if not success and CONFIG.autoplay.pauseOnFail then
+                        createAdvancedNotification("⚠️ Action Failed", "Pausing autoplay due to error", 3, "warning", "⏸️")
+                        stopAutoplay()
+                        return
+                    end
+                    
+                    if actionCount < CONFIG.autoplay.repeatCount then
+                        -- Schedule next repetition
+                        CONFIG.autoplay.connection = task.spawn(function()
+                            task.wait(CONFIG.autoplay.delay)
+                            executeAction()
+                        end)
+                    else
+                        -- Move to next slot
+                        CONFIG.autoplay.currentSlot = CONFIG.autoplay.currentSlot + 1
+                        CONFIG.autoplay.connection = task.spawn(function()
+                            task.wait(CONFIG.autoplay.delay)
+                            processNextSlot()
+                        end)
+                    end
+                end
+                
+                executeAction()
+            end
+            
+            processNextSlot()
+        end
+
+        autoplayBtn.MouseButton1Click:Connect(startEnhancedAutoplay)
+
+        -- === ENHANCED CONFIGURATION EVENT HANDLERS ===
+        saveConfigBtn.MouseButton1Click:Connect(saveCurrentConfiguration)
+        loadConfigBtn.MouseButton1Click:Connect(showConfigurationDropdown)
+        dropdownBtn.MouseButton1Click:Connect(showConfigurationDropdown)
+        deleteConfigBtn.MouseButton1Click:Connect(deleteCurrentConfiguration)
+        exportImportBtn.MouseButton1Click:Connect(function()
+            if UserInputService:IsKeyDown(Enum.KeyCode.LeftShift) then
+                importConfiguration()
+            else
+                exportCurrentConfiguration()
+            end
+        end)
+
+        -- Configuration name input handler
+        configNameInput.FocusLost:Connect(function()
+            if configNameInput.Text ~= "" then
+                loadConfigurationByName(configNameInput.Text)
+            end
+        end)
+
+        -- === ENHANCED BUTTON HANDLERS ===
+        for i, slot in ipairs(slots) do
+            slot.saveBtn.MouseButton1Click:Connect(function()
+                if not root or not humanoid then
+                    createAdvancedNotification("❌ Character Missing", "Please reload character first", 3, "error", "👤")
+                    return
+                end
+                
+                -- Enhanced position validation
+                local position = root.Position
+                if position.Magnitude > 100000 then
+                    createAdvancedNotification("❌ Invalid Position", "Position too extreme for safe saving", 3, "error", "📍")
+                    return
+                end
+                
+                -- Enhanced data capture
+                local data = {
+                    cframe = root.CFrame,
+                    cameraCFrame = Camera.CFrame,
+                    state = humanoid:GetState(),
+                    name = slot.nameBox.Text,
+                    timestamp = tick(),
+                    gameId = game.GameId,
+                    placeId = game.PlaceId
+                }
+                slot.data = data
+                
+                -- Enhanced visual feedback with animation
+                slot.slotStroke.Color = Color3.fromRGB(0, 255, 100)
+                slot.slotStroke.Thickness = 3
+                
+                TweenService:Create(slot.slotStroke, TweenInfo.new(1.0, Enum.EasingStyle.Quart, Enum.EasingDirection.Out), {
+                    Color = Color3.fromRGB(60, 60, 80),
+                    Thickness = 1
+                }):Play()
+                
+                -- Enhanced success notification
+                createAdvancedNotification("💾 Checkpoint Saved Successfully!", slot.nameBox.Text .. " saved to slot " .. i, 3, "success", "✅")
+                
+                -- Auto-save configuration if enabled
+                if CONFIG.features.autoSave then
+                    saveCurrentConfiguration()
+                end
+            end)
+
+            slot.actionBtn.MouseButton1Click:Connect(function()
+                if slot.data then
+                    -- Enhanced action execution with better feedback
+                    local actionName = modes[currentMode].name
+                    createAdvancedNotification("🎯 Executing Action", actionName .. " to " .. slot.nameBox.Text, 1.5, "info", modes[currentMode].icon)
+                    
+                    if currentMode == 1 then
+                        enhancedTeleport(slot.data)
+                    elseif currentMode == 2 then
+                        enhancedFastMove(slot.data)
+                    elseif currentMode == 3 then
+                        enhancedAIWalk(slot.data)
+                    end
+                else
+                    createAdvancedNotification("❌ Empty Slot", "Please save a checkpoint to slot " .. i .. " first!", 2, "warning", "💾")
+                end
+            end)
+        end
+
+        -- === ENHANCED UTILITY FUNCTIONS ===
+        reloadBtn.MouseButton1Click:Connect(function()
+            createAdvancedNotification("🔄 Reloading Character", "Refreshing character data...", 2, "info", "👤")
+            pcall(updateCharacter)
+        end)
+
+        clearAllBtn.MouseButton1Click:Connect(function()
+            -- Enhanced confirmation system
+            if CONFIG.security.requireConfirmation then
+                createAdvancedNotification("⚠️ Confirm Action", "Hold SHIFT and click again to clear all slots", 4, "warning", "🗑️")
+                if not UserInputService:IsKeyDown(Enum.KeyCode.LeftShift) then
+                    return
+                end
+            end
+            
+            local count = 0
+            for i, slot in ipairs(slots) do
+                if slot.data then
+                    slot.data = nil
+                    slot.slotStroke.Color = Color3.fromRGB(60, 60, 80)
+                    count = count + 1
+                end
+            end
+            createAdvancedNotification("🗑️ Slots Cleared", "Cleared " .. count .. " checkpoint slots successfully", 3, "warning", "🧹")
+            
+            -- Auto-save if enabled
+            if CONFIG.features.autoSave then
+                saveCurrentConfiguration()
+            end
+        end)
+
+        settingsBtn.MouseButton1Click:Connect(function()
+            createAdvancedNotification("⚙️ Settings Panel", "Advanced settings coming in next update!", 3, "info", "🔧")
+            
+            -- Show current settings in console
+            print("=== CURRENT CONFIGURATION SETTINGS ===")
+            print("AI Walk Speed:", CONFIG.aiWalk.walkSpeed)
+            print("Fast Move Speed:", CONFIG.fastMove.baseSpeed)
+            print("Autoplay Delay:", CONFIG.autoplay.delay)
+            print("UI Theme:", CONFIG.ui.theme)
+            print("Sound Effects:", CONFIG.features.soundEffects)
+            print("Auto Save:", CONFIG.features.autoSave)
+        end)
+
+        about
